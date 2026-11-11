@@ -434,56 +434,15 @@ y0 = np.column_stack((
     initial_omegas
 )).ravel()
 
-solDOP853 = solve_ivp(
-    motion,
-    (START, END),
-    y0,
-    t_eval=t,
-    method="DOP853",
-    rtol=1e-10,
-    atol=1e-12
-)
-solRK45= solve_ivp(
-    motion,
-    (START, END),
-    y0,
-    t_eval=t,
-    method="RK45",
-    rtol=1e-10,
-    atol=1e-12
-)
-solRK23= solve_ivp(
-    motion,
-    (START, END),
-    y0,
-    t_eval=t,
-    method="RK23",
-    rtol=1e-10,
-    atol=1e-12
-)
-solRadau= solve_ivp(
-    motion,
-    (START, END),
-    y0,
-    t_eval=t,
-    method="Radau",
-    rtol=1e-10,
-    atol=1e-12
-)
-solBDF= solve_ivp(
-    motion,
-    (START, END),
-    y0,
-    t_eval=t,
-    method="BDF",
-    rtol=1e-10,
-    atol=1e-12
-)
+methods = ["DOP853", "RK45", "RK23", "Radau", "BDF"]
 
-if not solDOP853.success:
-    raise RuntimeError(solDOP853.message)
+solutions = {
+    m: solve_ivp(motion, (START, END), y0, t_eval=t, method=m, rtol=1e-10, atol=1e-12)
+    for m in methods
+}
 
 errors = []
+
 def solve(sol):
 # ------------------- Pivot and Link Positions -------------------
     xp, yp = pivot_trajectory(USE_EARTHQUAKE, USE_OTHER_ACCELERATION, sol.t)
@@ -547,7 +506,7 @@ def solve(sol):
     )
     
     residual_percent = 100 * residual / energy_scale
-    int_error = np.trapezoid(np.abs(residual_percent),t, 0.5)
+    int_error = np.trapezoid(np.abs(residual_percent), x=sol.t) / (sol.t[-1] - sol.t[0])
     errors.append(int_error)
     
     fig_energy, axes = plt.subplots(
@@ -592,7 +551,7 @@ def solve(sol):
     
     axes[2].set(
         xlabel="Time (s)",
-        ylabel="Residual Fraction"
+        ylabel="Residual (%)"
     )
     
     axes[2].legend()
@@ -706,20 +665,28 @@ def solve(sol):
         blit=blit,
         repeat=False
     )
-        
-solve(solDOP853)
-solve(solRK45)
-solve(solRK23)
-solve(solRadau)
-solve(solBDF)
 
-if not PLOT_SHOW:
-    plt.close('all')
+    fig._animation = animation
+    
+    if PLOT_SHOW:
+        plt.show()
 
-methods = ['DOP853','RK45','RK23','Radau','BDF']
+
+for method, solution in solutions.items():
+    print(f"Processing {method}")
+
+    if not solution.success:
+        print(f"{method} failed: {solution.message}")
+        continue
+
+    solve(solution)
+
+    if not PLOT_SHOW:
+        plt.close('all')
+
 colors = ['red', 'gold', 'blue', 'purple','skyblue']
 plt.bar(methods,errors, color = colors)
 plt.yscale('log')
-plt.ylabel('Total Energy Error')
+plt.ylabel('Mean Absolute Energy Balance Residual (%)')
 plt.xlabel('Numerical Integration Methods')
 plt.show()
