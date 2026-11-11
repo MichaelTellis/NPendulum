@@ -433,7 +433,7 @@ y0 = np.column_stack((
     initial_omegas
 )).ravel()
 
-sol = solve_ivp(
+solDOP853 = solve_ivp(
     motion,
     (START, END),
     y0,
@@ -442,13 +442,49 @@ sol = solve_ivp(
     rtol=1e-10,
     atol=1e-12
 )
+solRK45= solve_ivp(
+    motion,
+    (START, END),
+    y0,
+    t_eval=t,
+    method="RK45",
+    rtol=1e-10,
+    atol=1e-12
+)
+solRK23= solve_ivp(
+    motion,
+    (START, END),
+    y0,
+    t_eval=t,
+    method="RK23",
+    rtol=1e-10,
+    atol=1e-12
+)
+solRadau= solve_ivp(
+    motion,
+    (START, END),
+    y0,
+    t_eval=t,
+    method="Radau",
+    rtol=1e-10,
+    atol=1e-12
+)
+solBDF= solve_ivp(
+    motion,
+    (START, END),
+    y0,
+    t_eval=t,
+    method="BDF",
+    rtol=1e-10,
+    atol=1e-12
+)
 
-if not sol.success:
-    raise RuntimeError(sol.message)
+if not solDOP853.success:
+    raise RuntimeError(solDOP853.message)
 
+errors = []
 def solve(sol):
 # ------------------- Pivot and Link Positions -------------------
-
     xp, yp = pivot_trajectory(USE_EARTHQUAKE, USE_OTHER_ACCELERATION, sol.t)
     
     theta = sol.y[0::2]
@@ -510,6 +546,8 @@ def solve(sol):
     )
     
     residual_percent = 100 * residual / energy_scale
+    int_error = np.trapezoid(np.abs(residual_percent),t, 0.5)
+    errors.append(int_error)
     
     fig_energy, axes = plt.subplots(
         3, 1, figsize=(9, 7), sharex=True
@@ -666,3 +704,15 @@ def solve(sol):
     fig._animation = animation
     
     plt.show()
+solve(solDOP853)
+solve(solRK45)
+solve(solRK23)
+solve(solRadau)
+solve(solBDF)
+methods = ['DOP853','RK45','RK23','Radau','BDF']
+colors = ['red', 'gold', 'blue', 'purple','skyblue']
+plt.bar(methods,errors, color = colors)
+plt.yscale('log')
+plt.ylabel('Total Energy Error')
+plt.xlabel('Numerical Integration Methods')
+plt.show()
