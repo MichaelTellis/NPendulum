@@ -46,7 +46,7 @@ TRACE_PATH = True
 
 START, END, FRAMES = 0.0, 20.0, 1000
 
-G = 9810
+G = 9.810
 
 A_0 = 1.0
 W_N = 1.0
@@ -446,223 +446,223 @@ sol = solve_ivp(
 if not sol.success:
     raise RuntimeError(sol.message)
 
-
+def solve(sol):
 # ------------------- Pivot and Link Positions -------------------
 
-xp, yp = pivot_trajectory(USE_EARTHQUAKE, USE_OTHER_ACCELERATION, sol.t)
-
-theta = sol.y[0::2]
-omega = sol.y[1::2]
-
-frames = len(sol.t)
-
-joints = np.zeros((N + 1, 2, frames))
-centers = np.zeros((N, 2, frames))
-
-for f in range(frames):
-    com, joint = geometry(theta[:, f])
-
-    centers[:, :, f] = com + np.array([xp[f], yp[f]])
-    joints[:, :, f] = joint + np.array([xp[f], yp[f]])
-
-
-# ------------------- Angle Plot -------------------
-
-fig_angles, ax_angles = plt.subplots(figsize=(9, 4))
-
-for k in range(N):
-    ax_angles.plot(sol.t, theta[k], label=f"Link {k+1}")
-
-ax_angles.set(
-    xlabel="Time (s)",
-    ylabel="Angle (rad)",
-    title="Link Angles"
-)
-
-ax_angles.legend()
-ax_angles.grid(True)
-fig_angles.tight_layout()
-
-
-# ------------------- Energy Plot -------------------
-
-E = np.array([
-    relative_energy(sol.y[:, f])
-    for f in range(frames)
-])
-
-power = np.array([
-    power_balance(sol.t[f], sol.y[:, f])
-    for f in range(frames)
-])
-
-work = cumulative_trapezoid(
-    power, sol.t, initial=0.0
-)
-
-residual = E[:, 2] - E[0, 2] - work
-
-energy_scale = max(
-    np.max(np.abs(E[:, 0])),
-    np.max(np.abs(E[:, 1])),
-    np.max(np.abs(work)),
-    1e-12
-)
-
-residual_percent = 100 * residual / energy_scale
-
-fig_energy, axes = plt.subplots(
-    3, 1, figsize=(9, 7), sharex=True
-)
-
-axes[0].plot(
-    sol.t,
-    E[:, 2] - E[0, 2],
-    label="Measured Relative Energy Change"
-)
-
-axes[0].plot(
-    sol.t,
-    work,
-    "--",
-    label="Integrated External Work"
-)
-
-axes[0].legend()
-axes[0].grid(True)
-axes[0].set_ylabel("Energy (J)")
-
-axes[1].plot(
-    sol.t,
-    residual,
-    label="Energy Balance Residual"
-)
-
-axes[1].set(
-    ylabel="Residual (J)"
-)
-
-axes[1].legend()
-axes[1].grid(True)
-
-axes[2].plot(
-    sol.t,
-    residual_percent,
-    label="Energy Balance Residual Fraction"
-)
-
-axes[2].set(
-    xlabel="Time (s)",
-    ylabel="Residual Fraction"
-)
-
-axes[2].legend()
-axes[2].grid(True)
-
-fig_energy.tight_layout()
-
-print(
-    "Maximum energy balance residual (J):",
-    np.max(np.abs(residual))
-)
-
-if ORDER is not None:
+    xp, yp = pivot_trajectory(USE_EARTHQUAKE, USE_OTHER_ACCELERATION, sol.t)
+    
+    theta = sol.y[0::2]
+    omega = sol.y[1::2]
+    
+    frames = len(sol.t)
+    
+    joints = np.zeros((N + 1, 2, frames))
+    centers = np.zeros((N, 2, frames))
+    
+    for f in range(frames):
+        com, joint = geometry(theta[:, f])
+    
+        centers[:, :, f] = com + np.array([xp[f], yp[f]])
+        joints[:, :, f] = joint + np.array([xp[f], yp[f]])
+    
+    
+    # ------------------- Angle Plot -------------------
+    
+    fig_angles, ax_angles = plt.subplots(figsize=(9, 4))
+    
+    for k in range(N):
+        ax_angles.plot(sol.t, theta[k], label=f"Link {k+1}")
+    
+    ax_angles.set(
+        xlabel="Time (s)",
+        ylabel="Angle (rad)",
+        title="Link Angles"
+    )
+    
+    ax_angles.legend()
+    ax_angles.grid(True)
+    fig_angles.tight_layout()
+    
+    
+    # ------------------- Energy Plot -------------------
+    
+    E = np.array([
+        relative_energy(sol.y[:, f])
+        for f in range(frames)
+    ])
+    
+    power = np.array([
+        power_balance(sol.t[f], sol.y[:, f])
+        for f in range(frames)
+    ])
+    
+    work = cumulative_trapezoid(
+        power, sol.t, initial=0.0
+    )
+    
+    residual = E[:, 2] - E[0, 2] - work
+    
+    energy_scale = max(
+        np.max(np.abs(E[:, 0])),
+        np.max(np.abs(E[:, 1])),
+        np.max(np.abs(work)),
+        1e-12
+    )
+    
+    residual_percent = 100 * residual / energy_scale
+    
+    fig_energy, axes = plt.subplots(
+        3, 1, figsize=(9, 7), sharex=True
+    )
+    
+    axes[0].plot(
+        sol.t,
+        E[:, 2] - E[0, 2],
+        label="Measured Relative Energy Change"
+    )
+    
+    axes[0].plot(
+        sol.t,
+        work,
+        "--",
+        label="Integrated External Work"
+    )
+    
+    axes[0].legend()
+    axes[0].grid(True)
+    axes[0].set_ylabel("Energy (J)")
+    
+    axes[1].plot(
+        sol.t,
+        residual,
+        label="Energy Balance Residual"
+    )
+    
+    axes[1].set(
+        ylabel="Residual (J)"
+    )
+    
+    axes[1].legend()
+    axes[1].grid(True)
+    
+    axes[2].plot(
+        sol.t,
+        residual_percent,
+        label="Energy Balance Residual Fraction"
+    )
+    
+    axes[2].set(
+        xlabel="Time (s)",
+        ylabel="Residual Fraction"
+    )
+    
+    axes[2].legend()
+    axes[2].grid(True)
+    
+    fig_energy.tight_layout()
+    
     print(
-        "Note: finite Taylor order may not preserve "
-        "exact Lagrangian energy identities."
+        "Maximum energy balance residual (J):",
+        np.max(np.abs(residual))
     )
-
-
-# ------------------- Animation -------------------
-
-fig, ax = plt.subplots(figsize=(8, 8))
-
-ax.set_aspect("equal", adjustable="box")
-ax.grid(True)
-
-ax.set(
-    xlabel="x (m)",
-    ylabel="y (m)",
-    title="Physical Multi-Link Pendulum"
-)
-
-margin = 1.3 * (
-    np.sum(lengths) + np.max(np.hypot(a_cm, b_cm))
-)
-
-if not FOLLOW_PIVOT:
-    ax.set_xlim(np.min(xp) - margin, np.max(xp) + margin)
-    ax.set_ylim(np.min(yp) - margin, np.max(yp) + margin)
-
-rods, = ax.plot(
-    [], [], "o-",
-    color="black",
-    lw=2,
-    ms=4
-)
-
-cms = ax.scatter(
-    [], [],
-    s=65,
-    color="tab:red",
-    label="Centers of Mass",
-    zorder=4
-)
-
-pivot, = ax.plot([], [], "ko", ms=8)
-
-trace, = ax.plot(
-    [], [],
-    color="tab:red",
-    alpha=0.35
-)
-
-clock = ax.text(
-    0.02, 0.95, "",
-    transform=ax.transAxes
-)
-
-ax.legend(loc="upper right")
-
-
-def update(f):
-    rods.set_data(
-        joints[:, 0, f],
-        joints[:, 1, f]
-    )
-
-    cms.set_offsets(centers[:, :, f])
-
-    pivot.set_data(
-        [xp[f]],
-        [yp[f]]
-    )
-
-    clock.set_text(f"t = {sol.t[f]:.2f} s")
-
-    if TRACE_PATH:
-        trace.set_data(
-            centers[-1, 0, :f+1],
-            centers[-1, 1, :f+1]
+    
+    if ORDER is not None:
+        print(
+            "Note: finite Taylor order may not preserve "
+            "exact Lagrangian energy identities."
         )
-
-    if FOLLOW_PIVOT:
-        ax.set_xlim(xp[f] - margin, xp[f] + margin)
-        ax.set_ylim(yp[f] - margin, yp[f] + margin)
-
-    return rods, cms, pivot, trace, clock
-
-
-animation = FuncAnimation(
-    fig,
-    update,
-    frames=frames,
-    init_func=lambda: update(0),
-    interval=1000 * np.mean(np.diff(sol.t)),
-    blit=False,
-    repeat=False
-)
-
-fig._animation = animation
-
-plt.show()
+    
+    
+    # ------------------- Animation -------------------
+    
+    fig, ax = plt.subplots(figsize=(8, 8))
+    
+    ax.set_aspect("equal", adjustable="box")
+    ax.grid(True)
+    
+    ax.set(
+        xlabel="x (m)",
+        ylabel="y (m)",
+        title="Physical Multi-Link Pendulum"
+    )
+    
+    margin = 1.3 * (
+        np.sum(lengths) + np.max(np.hypot(a_cm, b_cm))
+    )
+    
+    if not FOLLOW_PIVOT:
+        ax.set_xlim(np.min(xp) - margin, np.max(xp) + margin)
+        ax.set_ylim(np.min(yp) - margin, np.max(yp) + margin)
+    
+    rods, = ax.plot(
+        [], [], "o-",
+        color="black",
+        lw=2,
+        ms=4
+    )
+    
+    cms = ax.scatter(
+        [], [],
+        s=65,
+        color="tab:red",
+        label="Centers of Mass",
+        zorder=4
+    )
+    
+    pivot, = ax.plot([], [], "ko", ms=8)
+    
+    trace, = ax.plot(
+        [], [],
+        color="tab:red",
+        alpha=0.35
+    )
+    
+    clock = ax.text(
+        0.02, 0.95, "",
+        transform=ax.transAxes
+    )
+    
+    ax.legend(loc="upper right")
+    
+    
+    def update(f):
+        rods.set_data(
+            joints[:, 0, f],
+            joints[:, 1, f]
+        )
+    
+        cms.set_offsets(centers[:, :, f])
+    
+        pivot.set_data(
+            [xp[f]],
+            [yp[f]]
+        )
+    
+        clock.set_text(f"t = {sol.t[f]:.2f} s")
+    
+        if TRACE_PATH:
+            trace.set_data(
+                centers[-1, 0, :f+1],
+                centers[-1, 1, :f+1]
+            )
+    
+        if FOLLOW_PIVOT:
+            ax.set_xlim(xp[f] - margin, xp[f] + margin)
+            ax.set_ylim(yp[f] - margin, yp[f] + margin)
+    
+        return rods, cms, pivot, trace, clock
+    
+    
+    animation = FuncAnimation(
+        fig,
+        update,
+        frames=frames,
+        init_func=lambda: update(0),
+        interval=1000 * np.mean(np.diff(sol.t)),
+        blit=False,
+        repeat=False
+    )
+    
+    fig._animation = animation
+    
+    plt.show()
