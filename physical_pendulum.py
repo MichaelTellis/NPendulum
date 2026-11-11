@@ -44,7 +44,8 @@ DAMPING = 0.3
 FOLLOW_PIVOT = True
 TRACE_PATH = True
 
-START, END, FRAMES = 0.0, 20.0, 1000
+START, END, FRAMERATE, PLAY_BACK = 0, 60, 60, 0.5
+RUNTIME = END - START
 
 G = 9.810
 
@@ -426,7 +427,7 @@ if np.any(masses <= 0) or np.any(lengths <= 0) or np.any(I_cm < 0):
 
 # ------------------- Numerical Integration -------------------
 
-t = np.linspace(START, END, FRAMES)
+t = np.linspace(START, END, int(RUNTIME*FRAMERATE))
 
 y0 = np.column_stack((
     initial_thetas,
@@ -651,14 +652,13 @@ def solve(sol):
             ax.set_ylim(yp[f] - margin, yp[f] + margin)
     
         return rods, cms, pivot, trace, clock
-    
-    
+
     animation = FuncAnimation(
         fig,
         update,
-        frames=frames,
+        frames=RUNTIME*FRAMERATE,
         init_func=lambda: update(0),
-        interval=1000 * np.mean(np.diff(sol.t)),
+        interval= 1000 / FRAMERATE / PLAY_BACK,
         blit=False,
         repeat=False
     )
@@ -666,3 +666,5 @@ def solve(sol):
     fig._animation = animation
     
     plt.show()
+
+solve(sol)
