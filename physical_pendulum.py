@@ -652,14 +652,19 @@ def solve(sol):
     
         return rods, cms, pivot, trace, clock
     
-    
+    # Only change graph if pivot accelerates
+    if USE_EARTHQUAKE and USE_OTHER_ACCELERATION == False:
+        blit = True
+    else:
+        blit = False    
+
     animation = FuncAnimation(
         fig,
         update,
         frames=frames,
         init_func=lambda: update(0),
         interval=1000 * np.mean(np.diff(sol.t)),
-        blit=False,
+        blit=blit,
         repeat=False
     )
     
