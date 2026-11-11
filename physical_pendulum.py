@@ -43,6 +43,7 @@ DAMPING = 0.3
 
 FOLLOW_PIVOT = True
 TRACE_PATH = True
+PLOT_SHOW = False
 
 START, END, FRAMES = 0.0, 20.0, 1000
 
@@ -705,15 +706,16 @@ def solve(sol):
         blit=blit,
         repeat=False
     )
-    
-    fig._animation = animation
-    
-    plt.show()
+        
 solve(solDOP853)
 solve(solRK45)
 solve(solRK23)
 solve(solRadau)
 solve(solBDF)
+
+if not PLOT_SHOW:
+    plt.close('all')
+
 methods = ['DOP853','RK45','RK23','Radau','BDF']
 colors = ['red', 'gold', 'blue', 'purple','skyblue']
 plt.bar(methods,errors, color = colors)
