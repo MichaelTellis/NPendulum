@@ -1,22 +1,27 @@
 
 import math
+import time
 import numpy as np
 from scipy.integrate import solve_ivp, cumulative_trapezoid
+import matplotlib
+PLOT_SHOW = False
+if not PLOT_SHOW:
+    matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from pypalettes import load_cmap
-
+from pathlib import Path
 
 # ------------------- Configuration -------------------
 
-N = 1
+N = 2
 
 masses = np.ones(N)
 lengths = np.ones(N)
 
 # Local coordinates:
 # +a to the right, +b down when theta = 0
-a_cm = np.array([0.40]*1)
+a_cm = np.array([0.40]*N)
 b_cm = .5 * lengths
 
 I_cm = masses * lengths**2 / 12.0
@@ -25,7 +30,7 @@ initial_thetas = np.full(N, 0)
 initial_omegas = np.zeros(N)
 
 ORDER = None
-PHYSICAL_PENDULUM = True
+PHYSICAL_PENDULUM = False
 
 # Reset for if not physical but point masses
 if PHYSICAL_PENDULUM:
@@ -45,10 +50,11 @@ DAMPING = 0.3
 
 FOLLOW_PIVOT = True
 TRACE_PATH = True
-PLOT_SHOW = False
+GIF_FRAMERATE = 15
 
 START, END, FRAMERATE, PLAY_BACK = 0, 60, 60, 0.5
 RUNTIME = END - START
+OUTPUT_FOLDER = Path('pendulum_output')
 
 G = 9.810
 
@@ -139,7 +145,7 @@ def earthquake(t):
 
 def other_acceleration(t):
     t = np.asarray(t)
-    return t, np.zeros_like(t, dtype=float)
+    return -t, np.zeros_like(t, dtype=float)
 
 
 def acceleration(USE_EARTHQUAKE, USE_OTHER_ACCELERATION, t):
@@ -439,10 +445,26 @@ y0 = np.column_stack((
 
 methods = ["RK45", "RK23", "DOP853", "Radau", "BDF", "LSODA"]
 
-solutions = {
-    m: solve_ivp(motion, (START, END), y0, t_eval=t, method=m, rtol=1e-10, atol=1e-12)
-    for m in methods
-}
+solutions = {}
+solver_runtimes = {}
+for m in methods:
+    start_time = time.perf_counter()
+    solutions[m] = solve_ivp(
+        motion, (START, END), y0, t_eval=t,
+        method=m, rtol=1e-10, atol=1e-12
+    )
+    solver_runtimes[m] = time.perf_counter() - start_time
+
+# Higher-accuracy reference for comparing angular trajectories
+reference = solve_ivp(
+    motion, (START, END), y0, t_eval=t,
+    method="DOP853", rtol=1e-12, atol=1e-14
+)
+if not reference.success:
+    raise RuntimeError(f"Reference integration failed: {reference.message}")
+theta_reference = reference.y[0::2]
+angular_errors = []
+function_evaluations = []
 
 errors = []
 
@@ -508,8 +530,8 @@ def solve(sol):
         1e-12
     )
     
-    residual_percent = 100 * residual / energy_scale
-    int_error = np.trapezoid(np.abs(residual_percent), x=sol.t) / (sol.t[-1] - sol.t[0])
+    residual_fraction = residual / energy_scale
+    int_error = np.trapezoid(np.abs(residual_fraction), x=sol.t) / (sol.t[-1] - sol.t[0])
     errors.append(int_error)
     
     fig_energy, axes = plt.subplots(
@@ -548,13 +570,13 @@ def solve(sol):
     
     axes[2].plot(
         sol.t,
-        residual_percent,
+        residual_fraction,
         label="Energy Balance Residual Fraction"
     )
     
     axes[2].set(
         xlabel="Time (s)",
-        ylabel="Residual (%)"
+        ylabel="Residual (Fraction)"
     )
     
     axes[2].legend()
@@ -662,37 +684,144 @@ def solve(sol):
     animation = FuncAnimation(
         fig,
         update,
-        frames=RUNTIME*FRAMERATE,
+        frames=range(0, frames, max(1, round(FRAMERATE / GIF_FRAMERATE))),
         init_func=lambda: update(0),
         blit=blit,
-        interval= 1000 / FRAMERATE / PLAY_BACK,
+        interval=1000 * max(1, round(FRAMERATE / GIF_FRAMERATE)) / FRAMERATE / PLAY_BACK,
         repeat=False
     )
 
     fig._animation = animation
     
-    if PLOT_SHOW:
-        plt.show()
+    # ----- Plot for x_movement over time - goal of minimizing for earthquake
 
+    x_bottom = centers[-1, 0, :]
+
+    fig_x, ax_x = plt.subplots(figsize=(9, 4))
+
+    ax_x.plot(sol.t, x_bottom - xp, label="Bottom Pendulum - Top Pendulum")
+
+    ax_x.set(
+        xlabel="Time (s)",
+        ylabel="Relative Horizontal Position (m)",
+        title="Bottom Pendulum Horizontal Position Relative to Top Pendulum"
+    )
+
+    ax_x.legend()
+    ax_x.grid(True)
+    fig_x.tight_layout()
+
+    return fig, fig_angles, fig_energy, fig_x, animation
 
 for method, solution in solutions.items():
     print(f"Processing {method}")
 
     if not solution.success:
         print(f"{method} failed: {solution.message}")
+        angular_errors.append(np.nan)
+        function_evaluations.append(solution.nfev)
         continue
 
-    solve(solution)
+    method_folder = OUTPUT_FOLDER / method
+    method_folder.mkdir(parents=True, exist_ok=True)
 
-    if not PLOT_SHOW:
-        plt.close('all')
+    # RMS wrapped angular difference from the higher-accuracy reference
+    angle_difference = np.arctan2(
+        np.sin(solution.y[0::2] - theta_reference),
+        np.cos(solution.y[0::2] - theta_reference)
+    )
+    mean_squared_error = np.mean(angle_difference**2, axis=0)
+    angular_errors.append(np.sqrt(
+        np.trapezoid(mean_squared_error, x=solution.t)
+        / (solution.t[-1] - solution.t[0])
+    ))
+    function_evaluations.append(solution.nfev)
 
+    fig, fig_angles, fig_energy, fig_x, animation = solve(solution)
+
+    # Save all static plots
+    fig_angles.savefig(
+        method_folder / "angles.png",
+        dpi=300, bbox_inches="tight"
+    )
+
+    fig_energy.savefig(
+        method_folder / "energy.png",
+        dpi=300, bbox_inches="tight"
+    )
+
+    fig_x.savefig(
+        method_folder / "x_position.png",
+        dpi=300, bbox_inches="tight"
+    )
+
+    # Save pendulum animation as GIF
+    print(f"Saving {method} GIF...", flush=True)
+    animation.save(
+        method_folder / "pendulum.gif",
+        writer="pillow",
+        fps=FRAMERATE * PLAY_BACK / max(1, round(FRAMERATE / GIF_FRAMERATE)),
+        dpi=80
+    )
+
+    print(f"Finished {method} GIF.", flush=True)
+    if PLOT_SHOW:
+        plt.show()
+
+    plt.close('all')
 
 cmap = load_cmap("Sunset", keep_first_n=len(methods))
 hex_colors = cmap.colors
 
-plt.bar(methods, errors, color = hex_colors)
-plt.yscale('log')
-plt.ylabel('Mean Absolute Energy Balance Residual (%)')
-plt.xlabel('Numerical Integration Methods')
-plt.show()
+fig_bar, ax_bar = plt.subplots(figsize=(9, 4))
+
+ax_bar.bar(methods, errors, color=hex_colors)
+ax_bar.set_yscale("log")
+ax_bar.set_ylabel("Mean Absolute Energy Balance Residual (Fraction)")
+ax_bar.set_xlabel("Numerical Integration Methods")
+
+fig_bar.tight_layout()
+
+OUTPUT_FOLDER.mkdir(parents=True, exist_ok=True)
+
+fig_bar.savefig(
+    OUTPUT_FOLDER / "solver_comparison.png",
+    dpi=300, bbox_inches="tight"
+)
+
+if PLOT_SHOW:
+    plt.show()
+
+plt.close(fig_bar)
+# ------------------- Solver Accuracy Comparison -------------------
+# Energy residuals above test energy balance; this chart compares trajectories.
+fig_accuracy, ax_accuracy = plt.subplots(figsize=(9, 4))
+ax_accuracy.bar(methods, angular_errors, color=hex_colors)
+ax_accuracy.set_yscale("log")
+ax_accuracy.set(
+    xlabel="Numerical Integration Methods",
+    ylabel="RMS Angular Difference (rad)",
+    title="Trajectory Difference from High-Accuracy DOP853 Reference"
+)
+ax_accuracy.grid(axis="y", alpha=0.3)
+fig_accuracy.tight_layout()
+fig_accuracy.savefig(OUTPUT_FOLDER / "trajectory_accuracy.png", dpi=300, bbox_inches="tight")
+
+fig_cost, ax_cost = plt.subplots(figsize=(9, 4))
+ax_cost.bar(methods, [solver_runtimes[m] for m in methods], color=hex_colors)
+ax_cost.set(
+    xlabel="Numerical Integration Methods",
+    ylabel="Integration Runtime (s)",
+    title="Numerical Solver Runtime (Excluding Plots and GIFs)"
+)
+ax_cost.grid(axis="y", alpha=0.3)
+fig_cost.tight_layout()
+fig_cost.savefig(OUTPUT_FOLDER / "solver_runtime.png", dpi=300, bbox_inches="tight")
+
+print("\nMethod | RMS angle difference (rad) | Runtime (s) | Function evaluations")
+for m, error, nfev in zip(methods, angular_errors, function_evaluations):
+    print(f"{m:6s} | {error:.6e} | {solver_runtimes[m]:.3f} | {nfev}")
+
+if PLOT_SHOW:
+    plt.show()
+plt.close('all')
