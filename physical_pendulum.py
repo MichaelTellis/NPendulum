@@ -4,6 +4,8 @@ import numpy as np
 from scipy.integrate import solve_ivp, cumulative_trapezoid
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+from pypalettes import load_cmap
+
 
 # ------------------- Configuration -------------------
 
@@ -43,7 +45,7 @@ DAMPING = 0.3
 
 FOLLOW_PIVOT = True
 TRACE_PATH = True
-PLOT_SHOW = True
+PLOT_SHOW = False
 
 START, END, FRAMERATE, PLAY_BACK = 0, 60, 60, 0.5
 RUNTIME = END - START
@@ -435,7 +437,7 @@ y0 = np.column_stack((
     initial_omegas
 )).ravel()
 
-methods = ["DOP853", "RK45", "RK23", "Radau", "BDF"]
+methods = ["RK45", "RK23", "DOP853", "Radau", "BDF", "LSODA"]
 
 solutions = {
     m: solve_ivp(motion, (START, END), y0, t_eval=t, method=m, rtol=1e-10, atol=1e-12)
@@ -685,8 +687,11 @@ for method, solution in solutions.items():
     if not PLOT_SHOW:
         plt.close('all')
 
-colors = ['red', 'gold', 'blue', 'purple','skyblue']
-plt.bar(methods,errors, color = colors)
+
+cmap = load_cmap("Sunset", keep_first_n=len(methods))
+hex_colors = cmap.colors
+
+plt.bar(methods, errors, color = hex_colors)
 plt.yscale('log')
 plt.ylabel('Mean Absolute Energy Balance Residual (%)')
 plt.xlabel('Numerical Integration Methods')
