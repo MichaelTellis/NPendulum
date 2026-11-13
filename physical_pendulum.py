@@ -19,13 +19,6 @@ N = 2
 masses = np.ones(N)
 lengths = np.ones(N)
 
-# Local coordinates:
-# +a to the right, +b down when theta = 0
-a_cm = np.array([0.40]*N)
-b_cm = .5 * lengths
-
-I_cm = masses * lengths**2 / 12.0
-
 initial_thetas = np.full(N, 0)
 initial_omegas = np.zeros(N)
 
@@ -34,9 +27,10 @@ PHYSICAL_PENDULUM = False
 
 # Reset for if not physical but point masses
 if PHYSICAL_PENDULUM:
-    I_cm = I_cm
-    a_cm = a_cm
-    b_cm = b_cm
+    # Local coordinates: +a to the right, +b down when theta = 0
+    I_cm = masses * lengths**2 / 12.0
+    a_cm = np.array([0.40]*N)
+    b_cm = .5 * lengths
 else:
     I_cm = np.zeros(N)
     a_cm = np.zeros(N)
