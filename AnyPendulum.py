@@ -4,7 +4,7 @@ import time
 import numpy as np
 from scipy.integrate import solve_ivp, cumulative_trapezoid
 import matplotlib
-PLOT_SHOW = True
+PLOT_SHOW = False
 if not PLOT_SHOW:
     matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -46,7 +46,7 @@ DAMPING = 0.3
 FOLLOW_PIVOT = True
 TRACE_PATH = True
 GIF_FRAMERATE = 40
-SAVE_IMAGES = False
+SAVE_IMAGES = True
 RUN_ALL = True # runs all integration techniques
 
 START, END, FRAMERATE, PLAY_BACK = 0, 60, 60, 0.5
