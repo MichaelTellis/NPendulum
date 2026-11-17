@@ -16,11 +16,7 @@ import numpy as np
 from scipy.integrate import solve_ivp, cumulative_trapezoid
 import matplotlib
 
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
-from pypalettes import load_cmap
 from pathlib import Path
-import pendulum_library as pendulum
 import sys
 import warnings
 from pprint import pprint
@@ -38,11 +34,15 @@ DEFAULTS = {
     "lengths": ([1.0], "Length of each link"),
     "physical": (False, "Whether to use physical pendulum model"),
     "a_cm": ([0.4], "with physical=true: sideways offset of center of mass"),
+    "b_cm": ([0.5], "with physical=true: downward offset of center of mass"),
     #initial conditions
-    "thetas": ([90.0], "Initial angles of each link DEGREES"),
+    "thetas": ([0.0], "Initial angles of each link DEGREES"),
     "omegas": ([0.0], "Initial angular velocities of each link, RAD/SEC"),
     #physics and taylor approx
     "pivot": ("none", "Pivot type: none, other (a_x = -t), or earthquake"),
+    "earthquake": ("real", "Earthquake type: real or fake"),
+    "earthquake_data_folder": ("Earthquake Acceleration Data", "Earthquake data folder path"),
+    "earthquake_specific": ("RSN31_PARKF_C08050.AT2", "Earthquake file path"),
     "damping": (0.3, "Damping coefficient (0 for no damping)"),
     "order": ("none", "none = exact sol. Specifies order of taylor approx"),
     "g": (9.81, "Gravitational acceleration"),
@@ -118,7 +118,7 @@ def validate_settings(settings):
     if N < 1:
         stop("Number of links must be at least 1.")
     
-    for arr_name in ["masses", "lengths", "thetas", "omegas", "a_cm"]:
+    for arr_name in ["masses", "lengths", "thetas", "omegas", "a_cm", "b_cm"]:
         arr = settings[arr_name]
         if len(arr) == 1:
             arr = np.full(N, arr[0])
@@ -157,6 +157,13 @@ def print_settings(settings):
 settings = get_settings(sys.argv[1:])
 settings = validate_settings(settings)
 
+if settings["earthquake"] not in ("real", "fake"):
+    stop("Earthquake must be 'real' or 'fake'.")
+
+if settings["pivot"] == "earthquake" and settings["earthquake"] == "real":
+    if not (Path(settings["earthquake_data_folder"]) / settings["earthquake_specific"]).is_file():
+        stop("Earthquake file does not exist.")
+
 print_settings(settings)
 #--------- Get configuration -------------------
 N = settings["links"]
@@ -174,8 +181,8 @@ PHYSICAL_PENDULUM = settings["physical"]
 if PHYSICAL_PENDULUM:
     # Local coordinates: +a to the right, +b down when theta = 0
     I_cm = masses * lengths**2 / 12.0
-    a_cm = np.full(N, settings["a_cm"])
-    b_cm = .5 * lengths
+    a_cm = settings["a_cm"]
+    b_cm = settings["b_cm"]
 else:
     I_cm = np.zeros(N)
     a_cm = np.zeros(N)
@@ -184,6 +191,8 @@ else:
 
 USE_EARTHQUAKE = settings["pivot"] == "earthquake"
 USE_OTHER_ACCELERATION = settings["pivot"] == "other"  # ignored if USE_EARTHQUAKE = True
+REAL_EARTHQUAKE = settings["earthquake"] == "real"
+earthquake_specific = Path(settings["earthquake_data_folder"]) / settings["earthquake_specific"]
 USE_DAMPING = settings["damping"] != 0 
 DAMPING = settings["damping"]
 
@@ -204,6 +213,9 @@ RTOL, ATOL = settings["rtol"], settings["atol"]
 PLOT_SHOW = settings["plot_show"]
 if not PLOT_SHOW:
     matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import pendulum_library as pendulum
+
 #---------------------more validation-------------------
 
 for arr in (
@@ -233,9 +245,9 @@ motion_args = (
     masses, I_cm, lengths, a_cm, b_cm,
     initial_thetas, ORDER, G,
     USE_EARTHQUAKE, USE_OTHER_ACCELERATION,
+    REAL_EARTHQUAKE, earthquake_specific,
     USE_DAMPING, DAMPING
 )
-
 
 for m in settings["methods"]:
     start_time = time.perf_counter()
@@ -290,13 +302,16 @@ for method, solution in solutions.items():
             / (solution.t[-1] - solution.t[0])
         ))
 
-    fig, fig_angles, fig_energy, fig_x, animation = pendulum.solve(solution, masses, I_cm, lengths, a_cm, b_cm,
-                                                        G, ORDER,
-                                                        USE_EARTHQUAKE, USE_OTHER_ACCELERATION,
-                                                        USE_DAMPING, DAMPING,
-                                                        FOLLOW_PIVOT, TRACE_PATH,
-                                                        FRAMERATE, GIF_FRAMERATE, PLAY_BACK,
-                                                        errors)
+    fig, fig_angles, fig_energy, fig_x, animation = pendulum.solve(
+        solution, masses, I_cm, lengths, a_cm, b_cm,
+        G, ORDER,
+        USE_EARTHQUAKE, USE_OTHER_ACCELERATION,
+        REAL_EARTHQUAKE, earthquake_specific,
+        USE_DAMPING, DAMPING,
+        FOLLOW_PIVOT, TRACE_PATH,
+        FRAMERATE, GIF_FRAMERATE, PLAY_BACK,
+        errors
+    )
 
     if SAVE_IMAGES:
         # Save all static plots

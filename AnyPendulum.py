@@ -4,7 +4,7 @@ import time
 import numpy as np
 from scipy.integrate import solve_ivp, cumulative_trapezoid
 import matplotlib
-PLOT_SHOW = False
+PLOT_SHOW = True
 if not PLOT_SHOW:
     matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -38,16 +38,18 @@ else:
     b_cm = lengths
 
 
-USE_EARTHQUAKE = False
+USE_EARTHQUAKE = True
 USE_OTHER_ACCELERATION = True # ignored if USE_EARTHQUAKE = True
+real_earthquake = True
+earthquake_specific = Path('RSN31_PARKF_C08050.AT2')
 USE_DAMPING = True
 DAMPING = 0.3
 
 FOLLOW_PIVOT = True
 TRACE_PATH = True
 GIF_FRAMERATE = 40
-SAVE_IMAGES = True
-RUN_ALL = True # runs all integration techniques
+SAVE_IMAGES = False
+RUN_ALL = False # runs all integration techniques
 
 START, END, FRAMERATE, PLAY_BACK = 0, 60, 60, 0.5
 RUNTIME = END - START
@@ -87,6 +89,7 @@ motion_args = (
     masses, I_cm, lengths, a_cm, b_cm,
     initial_thetas, ORDER, G,
     USE_EARTHQUAKE, USE_OTHER_ACCELERATION,
+    real_earthquake, earthquake_specific,
     USE_DAMPING, DAMPING
 )
 
@@ -152,13 +155,16 @@ for method, solution in solutions.items():
             / (solution.t[-1] - solution.t[0])
         ))
 
-    fig, fig_angles, fig_energy, fig_x, animation = pendulum.solve(solution, masses, I_cm, lengths, a_cm, b_cm,
-                                                        G, ORDER,
-                                                        USE_EARTHQUAKE, USE_OTHER_ACCELERATION,
-                                                        USE_DAMPING, DAMPING,
-                                                        FOLLOW_PIVOT, TRACE_PATH,
-                                                        FRAMERATE, GIF_FRAMERATE, PLAY_BACK,
-                                                        errors)
+    fig, fig_angles, fig_energy, fig_x, animation = pendulum.solve(
+        solution, masses, I_cm, lengths, a_cm, b_cm,
+        G, ORDER,
+        USE_EARTHQUAKE, USE_OTHER_ACCELERATION,
+        real_earthquake, earthquake_specific,
+        USE_DAMPING, DAMPING,
+        FOLLOW_PIVOT, TRACE_PATH,
+        FRAMERATE, GIF_FRAMERATE, PLAY_BACK,
+        errors
+    )
 
     if SAVE_IMAGES:
         # Save all static plots

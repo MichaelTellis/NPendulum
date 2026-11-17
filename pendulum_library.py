@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from pypalettes import load_cmap
 from pathlib import Path
-
+from realsimquake import load_real_quake, simulate_earthquake
 
 # Taylor approximation for sin and cos
 def trig(theta, order=None):
@@ -69,23 +69,24 @@ def trig(theta, order=None):
 
 # ------------------- Pivot Acceleration -------------------
 
-def earthquake(t):
-    A_0 = 1.0
-    W_N = 1.0
-    ZETA = 0.5
 
-    t = np.asarray(t)
+from functools import lru_cache
 
-    if not 0 < ZETA < 1:
-        raise ValueError("ZETA must be between zero and one.")
+@lru_cache(maxsize=16)
+def earthquake_data(real_earthquake, earthquake_specific):
+    if real_earthquake:
+        EQ_t, EQ_a = load_real_quake(earthquake_specific)
+    else:
+        EQ_t, EQ_a = simulate_earthquake()
 
-    alpha = ZETA * W_N
-    wd = W_N * np.sqrt(1 - ZETA**2)
+    return np.asarray(EQ_t), np.asarray(EQ_a)
 
-    ax = A_0 * np.exp(-alpha * t) * (
-        np.sin(wd * t)
-        - wd / alpha * np.cos(wd * t)
-    )
+
+def earthquake(t, real_earthquake=True, earthquake_specific: Path = None):
+    EQ_t, EQ_a = earthquake_data(real_earthquake, earthquake_specific)
+
+    t = np.asarray(t, dtype=float)
+    ax = np.interp(t, EQ_t, EQ_a, left=0.0, right=0.0)
 
     return ax, np.zeros_like(t, dtype=float)
 
@@ -95,17 +96,17 @@ def other_acceleration(t):
     return -t, np.zeros_like(t, dtype=float)
 
 
-def acceleration(USE_EARTHQUAKE, USE_OTHER_ACCELERATION, t):
-    return earthquake(t) if USE_EARTHQUAKE else other_acceleration(t) if USE_OTHER_ACCELERATION else (0, 0)
+def acceleration(USE_EARTHQUAKE, USE_OTHER_ACCELERATION, t, real_earthquake = True, earthquake_specific: Path = None):
+    return earthquake(t, real_earthquake, earthquake_specific) if USE_EARTHQUAKE else other_acceleration(t) if USE_OTHER_ACCELERATION else (0, 0)
 
 
-def pivot_trajectory(USE_EARTHQUAKE, USE_OTHER_ACCELERATION, t, x0=0.0, y0=0.0, vx0=0.0, vy0=0.0):
+def pivot_trajectory(USE_EARTHQUAKE, USE_OTHER_ACCELERATION, t, x0=0.0, y0=0.0, vx0=0.0, vy0=0.0, real_earthquake = True, earthquake_specific: Path = None):
     t = np.asarray(t, dtype=float)
 
     if t.ndim != 1 or len(t) < 2 or np.any(np.diff(t) <= 0):
         raise ValueError("t must be a strictly increasing array.")
 
-    ax, ay = acceleration(USE_EARTHQUAKE, USE_OTHER_ACCELERATION, t)
+    ax, ay = acceleration(USE_EARTHQUAKE, USE_OTHER_ACCELERATION, t, real_earthquake, earthquake_specific)
 
     ax = np.broadcast_to(ax, t.shape)
     ay = np.broadcast_to(ay, t.shape)
@@ -211,11 +212,11 @@ def d_theta_2_matrix(masses, lengths, a_cm, b_cm, thetas, order):
 
     return matrix
 
-def theta_matrix(masses, lengths, a_cm, b_cm, thetas, order, t, g = 9.81, use_earthquake=False, use_other_acceleration = False):
+def theta_matrix(masses, lengths, a_cm, b_cm, thetas, order, t, g = 9.81, use_earthquake=False, use_other_acceleration = False, real_earthquake = True, earthquake_specific: Path = None):
     N = len(masses)
     vector = np.zeros(N)
 
-    ax, ay = acceleration(use_earthquake, use_other_acceleration, t)
+    ax, ay = acceleration(use_earthquake, use_other_acceleration, t, real_earthquake, earthquake_specific)
 
     for k in range(N):
         for n in range(k, N):
@@ -245,6 +246,7 @@ def applied_torques(N, t, theta, omega):
 
 def motion(t, state, masses, I_cm, lengths, a_cm, b_cm,
         thetas, ORDER, G, USE_EARTHQUAKE, USE_OTHER_ACCELERATION,
+        real_earthquake, earthquake_specific,
         USE_DAMPING, DAMPING):
     thetas = state[0::2]
     theta_dots = state[1::2]
@@ -263,7 +265,8 @@ def motion(t, state, masses, I_cm, lengths, a_cm, b_cm,
         masses, lengths, a_cm, b_cm,
         thetas, ORDER, t, g=G,
         use_earthquake=USE_EARTHQUAKE,
-        use_other_acceleration=USE_OTHER_ACCELERATION
+        use_other_acceleration=USE_OTHER_ACCELERATION,
+        real_earthquake=real_earthquake, earthquake_specific=earthquake_specific
     )
 
     F = applied_torques(len(masses), t, thetas, theta_dots).copy()
@@ -325,11 +328,12 @@ def relative_energy(state, masses, I_cm, lengths, a_cm, b_cm, G):
 
 
 def power_balance(t, state, masses, lengths, a_cm, b_cm,
-        USE_EARTHQUAKE, USE_OTHER_ACCELERATION, USE_DAMPING, DAMPING):
+        USE_EARTHQUAKE, USE_OTHER_ACCELERATION, USE_DAMPING, DAMPING,
+        real_earthquake = True, earthquake_specific: Path = None):
     thetas = state[0::2]
     theta_dots = state[1::2]
 
-    ax, ay = acceleration(USE_EARTHQUAKE, USE_OTHER_ACCELERATION, t)
+    ax, ay = acceleration(USE_EARTHQUAKE, USE_OTHER_ACCELERATION, t, real_earthquake, earthquake_specific)
 
     R = np.hypot(a_cm, b_cm)
     phi = np.arctan2(a_cm, b_cm)
@@ -372,7 +376,7 @@ def solve(
     sol,
     masses, I_cm, lengths, a_cm, b_cm,
     G, ORDER,
-    USE_EARTHQUAKE, USE_OTHER_ACCELERATION,
+    USE_EARTHQUAKE, USE_OTHER_ACCELERATION, real_earthquake, earthquake_specific,
     USE_DAMPING, DAMPING,
     FOLLOW_PIVOT, TRACE_PATH,
     FRAMERATE, GIF_FRAMERATE, PLAY_BACK,
@@ -380,7 +384,11 @@ def solve(
     
     N = len(masses)
     # ------------------- Pivot and Link Positions -------------------
-    xp, yp = pivot_trajectory(USE_EARTHQUAKE, USE_OTHER_ACCELERATION, sol.t)
+    xp, yp = pivot_trajectory(
+        USE_EARTHQUAKE, USE_OTHER_ACCELERATION, sol.t,
+        real_earthquake=real_earthquake,
+        earthquake_specific=earthquake_specific
+    )    
     
     theta = sol.y[0::2]
     omega = sol.y[1::2]
@@ -424,7 +432,7 @@ def solve(
     
     power = np.array([
         power_balance(sol.t[f], sol.y[:, f], masses, lengths, a_cm, b_cm,
-        USE_EARTHQUAKE, USE_OTHER_ACCELERATION, USE_DAMPING, DAMPING)
+        USE_EARTHQUAKE, USE_OTHER_ACCELERATION, USE_DAMPING, DAMPING, real_earthquake, earthquake_specific)
         for f in range(frames)
     ])
     
@@ -524,7 +532,10 @@ def solve(
         np.sum(lengths) + np.max(np.hypot(a_cm, b_cm))
     )
     
-    if not FOLLOW_PIVOT:
+    if FOLLOW_PIVOT:
+        ax.set_xlim(xp[0] - margin, xp[0] + margin)
+        ax.set_ylim(yp[0] - margin, yp[0] + margin)
+    else:
         ax.set_xlim(np.min(xp) - margin, np.max(xp) + margin)
         ax.set_ylim(np.min(yp) - margin, np.max(yp) + margin)
     
@@ -586,11 +597,8 @@ def solve(
     
         return rods, cms, pivot, trace, clock
     
-    # Only change graph if pivot accelerates
-    if USE_EARTHQUAKE and USE_OTHER_ACCELERATION == False:
-        blit = True
-    else:
-        blit = False    
+    # Full redraw is required because FOLLOW_PIVOT changes axis limits.
+    blit = False
 
     animation = FuncAnimation(
         fig,
