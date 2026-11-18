@@ -240,7 +240,7 @@ def theta_matrix(masses, lengths, a_cm, b_cm, thetas, order, t, g = 9.81, use_ea
     return vector
 
 def applied_torques(N, t, theta, omega):
-    return np.ones(N)*100
+    return np.zeros(N)
 
 # ------------------- Equations of Motion -------------------
 
@@ -538,7 +538,10 @@ def solve(
             ncol=3,
             fontsize='x-small'
         )
-        
+        print(phase_points)
+        ax_phase.set_xlim(min(phase_points),max(phase_points))
+        ax_phase.set_ylim(min(phase_paths),max(phase_paths))
+
         def update_phase(f):
             for k, line in enumerate(phase_paths):
                 line.set_data(theta[k, :f], omega[k, :f])
@@ -546,6 +549,7 @@ def solve(
                 line.set_data([theta[k, f]], [omega[k, f]])
 
             return *phase_paths, *phase_points,
+
 
         animation_phase = FuncAnimation(
             fig_phase,
@@ -561,7 +565,7 @@ def solve(
     # ------------------- Animation -------------------
     
     fig, ax = plt.subplots(figsize=(8, 8))
-    ax.set_facecolor("#2365ff")                  # Inner plot background
+    ax.set_facecolor("#ffffff")                  # Inner plot background
     ax.set_aspect("equal", adjustable="box")
     ax.grid(True)
     
