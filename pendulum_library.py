@@ -524,7 +524,9 @@ def solve(
 
         ax_phase.set(
             xlabel='Angle',
+            xlim=(theta.min(), theta.max()),
             ylabel='Angular Velocity (m/s)',
+            ylim=(omega.min(), omega.max()),
             title='Phase Space for Pendulum'
         )
         phase_paths = [None]*N
@@ -538,9 +540,6 @@ def solve(
             ncol=3,
             fontsize='x-small'
         )
-        print(phase_points)
-        ax_phase.set_xlim(min(phase_points),max(phase_points))
-        ax_phase.set_ylim(min(phase_paths),max(phase_paths))
 
         def update_phase(f):
             for k, line in enumerate(phase_paths):
@@ -561,6 +560,7 @@ def solve(
         )
         
         fig_phase._animation = animation_phase
+        plt.show()
 
     # ------------------- Animation -------------------
     
