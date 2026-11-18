@@ -44,7 +44,7 @@ DEFAULTS = {
     "earthquake_specific": ("RSN31_PARKF_C08050.AT2", "Earthquake file path"),
     "damping": (0.3, "Damping coefficient (0 for no damping)"),
     "order": ("none", "none = exact sol. Specifies order of taylor approx"),
-    "g": (9.81, "Gravitational acceleration (m/s^2)"),
+    "g": (9.81, "Gravitational acceleration"),
     #time
     "start": (0.0, "Start time (s)"),
     "end": (60.0, "End time (s)"),
@@ -59,6 +59,7 @@ DEFAULTS = {
     "gif": (False, "Whether to make GIFs, note: GIFs are only made if save_images is True as well"),
     "gif_framerate": (40, "Framerate for GIFs"),
     "trace_path": (True, "Whether to trace the path of the pendulum"),
+    "run_phase_space": (True, "Whether to determine the phase space of the pendulum."),
     "playback": (0.5, "Playback speed for GIFs"),
     "follow_pivot": (True, "Whether to follow the pivot point in the animation"),
     "plot_show": (True, "Whether to show plots and animations")
@@ -79,7 +80,6 @@ def stop(message):
     sys.exit(f"Error: {message}\nRun  python AnyPendulum_v2.py help  to see every setting.")
 
 def get_settings(argv=None):
-    
     settings = {name: default for name, (default, _) in DEFAULTS.items()}
     for arg in argv:
         if arg.lower() == "help":
@@ -143,16 +143,6 @@ def validate_settings(settings):
                 stop(f"unknown integration method {method}. must be in this list: {METHODS}")
     if settings["start"] >= settings["end"]:
         stop("Start time must be less than end time.")
-    
-    if settings["earthquake"] not in ("real", "fake"):
-        stop("Earthquake must be 'real' or 'fake'.")
-
-    if settings["pivot"] == "earthquake" and settings["earthquake"] == "real":
-        if not (Path(settings["earthquake_data_folder"]) / settings["earthquake_specific"]).is_file():
-            stop("Earthquake file does not exist.")
-    if settings["damping"] < 0:
-        stop("Damping coefficient must be non-negative.")
-
     return settings
 
 def print_settings(settings):
@@ -162,9 +152,15 @@ def print_settings(settings):
     print("-" * 20 + "\n change settings by running: python AnyPendulum_v2.py name=value; run  python AnyPendulum_v2.py help to see list of settings \n")
 
 
-
 settings = get_settings(sys.argv[1:])
 settings = validate_settings(settings)
+
+if settings["earthquake"] not in ("real", "fake"):
+    stop("Earthquake must be 'real' or 'fake'.")
+
+if settings["pivot"] == "earthquake" and settings["earthquake"] == "real":
+    if not (Path(settings["earthquake_data_folder"]) / settings["earthquake_specific"]).is_file():
+        stop("Earthquake file does not exist.")
 
 print_settings(settings)
 #--------- Get configuration -------------------
@@ -192,14 +188,15 @@ else:
 
 
 USE_EARTHQUAKE = settings["pivot"] == "earthquake"
-USE_OTHER_ACCELERATION = settings["pivot"] == "other"  # ignored if USE_EARTHQUAKE = True
+USE_OTHER_ACCELERATION = settings["pivot"] == "other"
 REAL_EARTHQUAKE = settings["earthquake"] == "real"
 earthquake_specific = Path(settings["earthquake_data_folder"]) / settings["earthquake_specific"]
 USE_DAMPING = settings["damping"] != 0 
 DAMPING = settings["damping"]
 
 FOLLOW_PIVOT = settings["follow_pivot"]
-TRACE_PATH =settings["trace_path"]
+TRACE_PATH = settings["trace_path"]
+PHASE = settings["run_phase_space"]
 GIF_FRAMERATE = settings["gif_framerate"]
 SAVE_IMAGES = settings["save_images"]
 SAVE_GIF = settings["gif"] and SAVE_IMAGES
@@ -304,13 +301,13 @@ for method, solution in solutions.items():
             / (solution.t[-1] - solution.t[0])
         ))
 
-    fig, fig_angles, fig_energy, fig_x, fig_angular_x, animation = pendulum.solve(
+    fig, fig_angles, fig_energy, fig_x, fig_angular_x, animation, fig_phase, animation_phase = pendulum.solve(
         solution, masses, I_cm, lengths, a_cm, b_cm,
         G, ORDER,
         USE_EARTHQUAKE, USE_OTHER_ACCELERATION,
         REAL_EARTHQUAKE, earthquake_specific,
         USE_DAMPING, DAMPING,
-        FOLLOW_PIVOT, TRACE_PATH,
+        FOLLOW_PIVOT, TRACE_PATH, PHASE,
         FRAMERATE, GIF_FRAMERATE, PLAY_BACK,
         errors, motion_args
     )
@@ -335,8 +332,8 @@ for method, solution in solutions.items():
         fig_angular_x.savefig(
             method_folder / "x_angular_acceleration.png",
             dpi=300, bbox_inches="tight"
-
         )
+
     if SAVE_GIF:
         # Save pendulum animation as GIF
         print(f"Saving {method} GIF...", flush=True)
@@ -346,8 +343,17 @@ for method, solution in solutions.items():
             fps=FRAMERATE * PLAY_BACK / max(1, round(FRAMERATE / GIF_FRAMERATE)),
             dpi=80
         )
+        
+        # Save pendulum phase space animation as GIF
+        print(f"Saving {method} Phase Space GIF...", flush=True)
+        animation_phase.save(
+            method_folder / "pendulum_phase.gif",
+            writer="pillow",
+            fps=FRAMERATE * PLAY_BACK / max(1, round(FRAMERATE / GIF_FRAMERATE)),
+            dpi=80
+        )
 
-        print(f"Finished {method} GIF.", flush=True)
+        print(f"Finished {method} GIFs.", flush=True)
     if PLOT_SHOW:
         plt.show()
 

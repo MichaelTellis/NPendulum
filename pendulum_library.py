@@ -240,7 +240,7 @@ def theta_matrix(masses, lengths, a_cm, b_cm, thetas, order, t, g = 9.81, use_ea
     return vector
 
 def applied_torques(N, t, theta, omega):
-    return np.zeros(N)
+    return np.ones(N)*100
 
 # ------------------- Equations of Motion -------------------
 
@@ -378,7 +378,7 @@ def solve(
     G, ORDER,
     USE_EARTHQUAKE, USE_OTHER_ACCELERATION, real_earthquake, earthquake_specific,
     USE_DAMPING, DAMPING,
-    FOLLOW_PIVOT, TRACE_PATH,
+    FOLLOW_PIVOT, TRACE_PATH, PHASE,
     FRAMERATE, GIF_FRAMERATE, PLAY_BACK,
     errors, motion_args = None):
     
@@ -514,11 +514,54 @@ def solve(
             "exact Lagrangian energy identities."
         )
     
-    
+    # ------------------ Phase Space ------------------
+
+    if PHASE:
+        fig_phase, ax_phase = plt.subplots(figsize=(8, 8))
+
+        ax_phase.set_aspect(0.5)
+        ax_phase.grid(True)
+
+        ax_phase.set(
+            xlabel='angle',
+            ylabel='angular_acceleration',
+            title='Phase Space for Pendulum'
+        )
+        phase_paths = [None]*N
+        phase_points = [None]*N
+        for k in range(N):
+            phase_paths[k]  = ax_phase.plot([], [], alpha=0.5, label=f'Pendulum {k+1}')[0]
+            phase_points[k] = ax_phase.plot([], [], marker='o', markerfacecolor='r', color='k')[0]
+        
+        ax_phase.legend(loc='upper center',
+            bbox_to_anchor=(0.5, -0.15),
+            ncol=3,
+            fontsize='x-small'
+        )
+        
+        def update_phase(f):
+            for k, line in enumerate(phase_paths):
+                line.set_data(theta[k, :f], omega[k, :f])
+            for k, line in enumerate(phase_points):
+                line.set_data([theta[k, f]], [omega[k, f]])
+
+            return *phase_paths, *phase_points,
+
+        animation_phase = FuncAnimation(
+            fig_phase,
+            update_phase,
+            frames=range(0, frames, max(1, round(FRAMERATE / GIF_FRAMERATE))),
+            blit=True,
+            interval=1000 * max(1, round(FRAMERATE / GIF_FRAMERATE)) / FRAMERATE / PLAY_BACK,
+            repeat=False
+        )
+        
+        fig_phase._animation = animation_phase
+
     # ------------------- Animation -------------------
     
     fig, ax = plt.subplots(figsize=(8, 8))
-    
+    ax.set_facecolor("#2365ff")                  # Inner plot background
     ax.set_aspect("equal", adjustable="box")
     ax.grid(True)
     
@@ -653,7 +696,7 @@ def solve(
     angular_x.grid(True)
     fig_angular_x.tight_layout()
 
-    return fig, fig_angles, fig_energy, fig_x, fig_angular_x, animation
+    return fig, fig_angles, fig_energy, fig_x, fig_angular_x, animation, fig_phase, animation_phase
 
 
 def solver_accuracy(methods, angular_errors, errors, solver_runtimes, function_evaluations, OUTPUT_FOLDER):
