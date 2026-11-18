@@ -523,8 +523,8 @@ def solve(
         ax_phase.grid(True)
 
         ax_phase.set(
-            xlabel='angle',
-            ylabel='angular_acceleration',
+            xlabel='Angle',
+            ylabel='Angular Velocity (m/s)',
             title='Phase Space for Pendulum'
         )
         phase_paths = [None]*N
@@ -690,7 +690,7 @@ def solve(
     angular_x.plot(sol.t, bottom_angular_acceleration)
     angular_x.set(
         xlabel="Time (s)",
-        ylabel="Angular Acceleration (rad/s²)",
+        ylabel="Angular Velocity (rad/s)",
         title="Bottom Link Angular Acceleration"
     )
     angular_x.grid(True)
