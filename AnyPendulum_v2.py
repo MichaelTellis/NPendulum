@@ -44,7 +44,7 @@ DEFAULTS = {
     "earthquake_specific": ("RSN31_PARKF_C08050.AT2", "Earthquake file path"),
     "damping": (0.3, "Damping coefficient (0 for no damping)"),
     "order": ("none", "none = exact sol. Specifies order of taylor approx"),
-    "g": (9.81, "Gravitational acceleration"),
+    "g": (9.81, "Gravitational acceleration (m/s^2)"),
     #time
     "start": (0.0, "Start time (s)"),
     "end": (60.0, "End time (s)"),
@@ -143,6 +143,16 @@ def validate_settings(settings):
                 stop(f"unknown integration method {method}. must be in this list: {METHODS}")
     if settings["start"] >= settings["end"]:
         stop("Start time must be less than end time.")
+    
+    if settings["earthquake"] not in ("real", "fake"):
+        stop("Earthquake must be 'real' or 'fake'.")
+
+    if settings["pivot"] == "earthquake" and settings["earthquake"] == "real":
+        if not (Path(settings["earthquake_data_folder"]) / settings["earthquake_specific"]).is_file():
+            stop("Earthquake file does not exist.")
+    if settings["damping"] < 0:
+        stop("Damping coefficient must be non-negative.")
+
     return settings
 
 def print_settings(settings):
@@ -155,13 +165,6 @@ def print_settings(settings):
 
 settings = get_settings(sys.argv[1:])
 settings = validate_settings(settings)
-
-if settings["earthquake"] not in ("real", "fake"):
-    stop("Earthquake must be 'real' or 'fake'.")
-
-if settings["pivot"] == "earthquake" and settings["earthquake"] == "real":
-    if not (Path(settings["earthquake_data_folder"]) / settings["earthquake_specific"]).is_file():
-        stop("Earthquake file does not exist.")
 
 print_settings(settings)
 #--------- Get configuration -------------------
