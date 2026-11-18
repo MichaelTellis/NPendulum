@@ -380,7 +380,7 @@ def solve(
     USE_DAMPING, DAMPING,
     FOLLOW_PIVOT, TRACE_PATH,
     FRAMERATE, GIF_FRAMERATE, PLAY_BACK,
-    errors):
+    errors, motion_args = None):
     
     N = len(masses)
     # ------------------- Pivot and Link Positions -------------------
@@ -630,7 +630,30 @@ def solve(
     ax_x.grid(True)
     fig_x.tight_layout()
 
-    return fig, fig_angles, fig_energy, fig_x, animation
+    # ----- Plot for x_angular_acceleration over time - goal of minimizing for earthquake
+
+    angular_acceleration = np.array([
+        motion(
+            sol.t[i],
+            sol.y[:, i],
+            *motion_args
+        )[1::2]
+        for i in range(len(sol.t))
+    ])
+
+    bottom_angular_acceleration = angular_acceleration[:, -1]
+
+    fig_angular_x, angular_x = plt.subplots(figsize=(9, 4))
+    angular_x.plot(sol.t, bottom_angular_acceleration)
+    angular_x.set(
+        xlabel="Time (s)",
+        ylabel="Angular Acceleration (rad/s²)",
+        title="Bottom Link Angular Acceleration"
+    )
+    angular_x.grid(True)
+    fig_angular_x.tight_layout()
+
+    return fig, fig_angles, fig_energy, fig_x, fig_angular_x, animation
 
 
 def solver_accuracy(methods, angular_errors, errors, solver_runtimes, function_evaluations, OUTPUT_FOLDER):

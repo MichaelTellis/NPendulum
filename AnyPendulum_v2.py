@@ -23,7 +23,6 @@ from pprint import pprint
 
 
 METHODS = ["RK45", "RK23", "DOP853", "Radau", "BDF", "LSODA"]
-methods_one = 'RK45'
 
 # ------------------- Configuration -------------------
 #default config
@@ -67,7 +66,7 @@ DEFAULTS = {
 TRUE_VALUES = {"true", "1", "yes"}
 FALSE_VALUES = {"false", "0", "no"}
 
-# AI wrote the validation functions: stop and print_help(): which are used alot later.
+# AI wrote the validation functions: stop and print_help(): which are used a lot later.
 def print_help():
     print(__doc__)
     print("Settings (name=default):")
@@ -302,7 +301,7 @@ for method, solution in solutions.items():
             / (solution.t[-1] - solution.t[0])
         ))
 
-    fig, fig_angles, fig_energy, fig_x, animation = pendulum.solve(
+    fig, fig_angles, fig_energy, fig_x, fig_angular_x, animation = pendulum.solve(
         solution, masses, I_cm, lengths, a_cm, b_cm,
         G, ORDER,
         USE_EARTHQUAKE, USE_OTHER_ACCELERATION,
@@ -310,7 +309,7 @@ for method, solution in solutions.items():
         USE_DAMPING, DAMPING,
         FOLLOW_PIVOT, TRACE_PATH,
         FRAMERATE, GIF_FRAMERATE, PLAY_BACK,
-        errors
+        errors, motion_args
     )
 
     if SAVE_IMAGES:
@@ -328,6 +327,12 @@ for method, solution in solutions.items():
         fig_x.savefig(
             method_folder / "x_position.png",
             dpi=300, bbox_inches="tight"
+        )
+
+        fig_angular_x.savefig(
+            method_folder / "x_angular_acceleration.png",
+            dpi=300, bbox_inches="tight"
+
         )
     if SAVE_GIF:
         # Save pendulum animation as GIF
